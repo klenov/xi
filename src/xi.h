@@ -33,7 +33,11 @@ class RiemannEventMsg {
   /*! * default Constructor */
   RiemannEventMsg();
 
-  void setMetric(float value);
+  void setMetricF(float value);
+
+  void setMetricD(double value);
+
+  void setMetricSint64(int64_t value);
 
   void setService(const char* service_name);
 

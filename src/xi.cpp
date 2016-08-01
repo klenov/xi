@@ -30,9 +30,19 @@ RiemannEventMsg::RiemannEventMsg() :
     msg_struct.events.arg = &event_struct;
   }
 
-void RiemannEventMsg::setMetric(float value) { // TODO: add other types
+void RiemannEventMsg::setMetricF(float value) {
   event_struct.metric_f     = value;
   event_struct.has_metric_f = true;
+}
+
+void RiemannEventMsg::setMetricD(double value) {
+  event_struct.metric_d     = value;
+  event_struct.has_metric_d = true;
+}
+
+void RiemannEventMsg::setMetricSint64(int64_t value) {
+  event_struct.metric_sint64     = value;
+  event_struct.has_metric_sint64 = true;
 }
 
 void RiemannEventMsg::setService(const char* service_name) {
