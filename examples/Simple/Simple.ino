@@ -53,7 +53,7 @@ void loop() {
 
   riemann_event.setHostname("nodemcu");
   riemann_event.setService("test_service");
-  riemann_event.setMetric(3.14);
+  riemann_event.setMetricF(3.14);
 
   riemannClient.sendEvent(riemann_event);
 }
