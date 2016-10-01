@@ -15,17 +15,34 @@ inline bool pb_string_callback(pb_ostream_t *stream, const pb_field_t *field, vo
 }
 
 inline bool pb_event_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg) {
-  Event *riemann_event = (Event*) *arg;
+  RiemannEvent *riemann_event = (RiemannEvent*) *arg;
 
   if (!pb_encode_tag_for_field(stream, field))
     return false;
 
-  return pb_encode_delimited(stream, Event_fields, riemann_event);
+  return pb_encode_delimited(stream, RiemannEvent_fields, riemann_event);
+}
+
+// для чтения ошибки!
+bool pb_decode_str(pb_istream_t *stream, const pb_field_t *field, void **arg) {
+  int error_length = stream->bytes_left;
+  
+  XI_DEBUG_PRINT("error lenght ");
+  XI_DEBUG_PRINT_VARLN(error_length);
+
+  // while (stream->bytes_left)
+  // {
+  //     uint64_t value;
+  //     if (!pb_decode_varint(stream, &value))
+  //         return false;
+  //     printf("%lld\n", value);
+  // }
+  return true;
 }
 
 RiemannEventMsg::RiemannEventMsg() : 
-  msg_struct(Msg_init_default),
-  event_struct(Event_init_default) {
+  msg_struct(RiemannMsg_init_default),
+  event_struct(RiemannEvent_init_default) {
     msg_struct.events.funcs.encode = &pb_event_callback;
     msg_struct.events.arg = &event_struct;
   }
@@ -57,7 +74,7 @@ void RiemannEventMsg::setHostname(const char* hostname) {
 
 size_t RiemannEventMsg::size() {
   size_t encoded_msg_size;
-  pb_get_encoded_size(&encoded_msg_size, Msg_fields, &msg_struct);
+  pb_get_encoded_size(&encoded_msg_size, RiemannMsg_fields, &msg_struct);
   return encoded_msg_size;
 }
 
@@ -113,17 +130,89 @@ bool Xi::sendEvent(RiemannEventMsg event_msg) {
   if (!status) {
     XI_DEBUG_PRINT("ERROR: Writing header failed: ");
     XI_DEBUG_PRINT_VARLN(PB_GET_ERROR(&output_stream));
-    return status;
+    return false;
   }
   
   // writing a protobuf message to a stream
-  status = pb_encode(&output_stream, Msg_fields, &event_msg);
+  status = pb_encode(&output_stream, RiemannMsg_fields, &event_msg);
 
   if (!status) {
     XI_DEBUG_PRINT("ERROR: Encoding failed: ");
     XI_DEBUG_PRINT_VARLN(PB_GET_ERROR(&output_stream));
-    return status;
+    return false;
   }
+
+  // server_response_msg.error.funcs.decode = &pb_decode_str;
+  
+  unsigned long start_time = millis();
+  while (_wifi_client->available() == 0) {
+    if (millis() - start_time > 500) {
+      Serial.println(">>> Client Timeout !");
+      _wifi_client->stop();
+      return false;
+    }
+  }
+
+  // int bytes_av = _wifi_client->available();
+
+  // String str = _wifi_client->readString();
+  // читаем хедер, если он больше нуля читаем оставшиеся байты, потом декодим их
+  if( _wifi_client->available() > RIEMANN_HEADER_SIZE ) {
+    byte leght_header[RIEMANN_HEADER_SIZE] = {0};
+    _wifi_client->readBytes(leght_header, RIEMANN_HEADER_SIZE);
+   
+    uint32_t m_size = (uint32_t)leght_header[0] << 24
+                    | (uint32_t)leght_header[1] << 16
+                    | (uint32_t)leght_header[2] << 8
+                    | (uint32_t)leght_header[3];
+
+    XI_DEBUG_PRINT("m_size: ");
+    XI_DEBUG_PRINT_VARLN(m_size);
+
+    if( m_size > 0 ) {
+      pb_byte_t buf[64];
+      RiemannMsg server_response_msg = {};
+      pb_istream_t input_stream = pb_istream_from_buffer(buf, 64);
+      // pb_istream_from_stream(*wifi_client_stream, input_stream);
+      // _wifi_client->readBytes(buf, m_size - RIEMANN_HEADER_SIZE);
+
+      if (!pb_decode(&input_stream, RiemannMsg_fields, &server_response_msg)) {
+        XI_DEBUG_PRINT("Decode failed: ");
+        XI_DEBUG_PRINT_VARLN(PB_GET_ERROR(&input_stream));
+        return false;
+      }
+
+      Serial.print("Server response: ");
+      Serial.println(server_response_msg.has_ok);
+
+    }
+
+  }
+
+  // while (_wifi_client->available() )
+  //   Serial.print(_wifi_client->read(), HEX);
+
+
+  // pb_byte_t bbuf[64];
+
+  // while (bytes_left)
+  // {
+  //   XI_DEBUG_PRINT("Will read bytes ");
+  //   XI_DEBUG_PRINT_VARLN(bytes_left);
+
+  //   pb_read(&input_stream, bbuf, bytes_left);
+
+  //   XI_DEBUG_PRINT_VARLN((const char*)bbuf);
+  // }
+  
+  // if (!pb_decode(&input_stream, Msg_fields, &server_response_msg)) {
+  //   XI_DEBUG_PRINT("Decode failed: ");
+  //   XI_DEBUG_PRINT_VARLN(PB_GET_ERROR(&input_stream));
+  //   return false;
+  // }
+
+  // Serial.print("Server response: ");
+  // Serial.println(server_response_msg.ok);
 
   return true;
 }

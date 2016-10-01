@@ -14,11 +14,13 @@
 #include "utils/debug.h"
 
 extern "C"{
-  #include "nanopb/pb_encode.h" // TODO: add decode to read server response
+  #include "nanopb/pb_encode.h"
+  #include "nanopb/pb_decode.h"
   #include "riemann.pb.h"
 }
 
 #include "nanopb/pb_arduino_encode.h"
+#include "nanopb/pb_arduino_decode.h"
 
 bool pb_string_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 
@@ -26,8 +28,8 @@ bool pb_event_callback(pb_ostream_t *stream, const pb_field_t *field, void * con
 
 class RiemannEventMsg {
   private:
-  Msg   msg_struct;
-  Event event_struct;
+  RiemannMsg   msg_struct;
+  RiemannEvent event_struct;
 
   public:
   /*! * default Constructor */
@@ -62,7 +64,7 @@ public:
 
   bool connect();
   
-  // see about header in Reiamann docs http://riemann.io/howto.html#write-a-client
+  // see about header in Riemann docs http://riemann.io/howto.html#write-a-client
   pb_byte_t* lenghtHeader(size_t message_size);
 
   bool sendEvent(RiemannEventMsg event_msg);
